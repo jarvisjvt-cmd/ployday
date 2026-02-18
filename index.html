@@ -41,6 +41,8 @@ body{min-height:100vh;background:var(--deep);display:flex;align-items:center;jus
 .error-msg{color:#ff8fa3;font-size:13px;margin-top:14px;opacity:0;transition:opacity 0.3s;min-height:20px;}
 .error-msg.show{opacity:1;}
 .shake{animation:shake 0.4s ease !important;}
+.mic-status{font-size:11px;color:rgba(255,255,255,0.3);margin-top:10px;animation:fadeUp 0.8s ease 1.1s both;letter-spacing:1px;}
+.mic-status.ready{color:rgba(100,255,150,0.5);}
 .cake-page{width:100vw;max-width:620px;text-align:center;padding:10px 12px 6px;display:flex;flex-direction:column;align-items:center;}
 .cake-title{font-family:'Playfair Display',serif;font-style:italic;font-size:20px;color:var(--blush);margin-bottom:3px;animation:fadeUp 0.7s ease 0.2s both;}
 .cake-sub{font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:8px;letter-spacing:1px;animation:fadeUp 0.7s ease 0.35s both;}
@@ -239,6 +241,7 @@ body{min-height:100vh;background:var(--deep);display:flex;align-items:center;jus
     </div>
     <button class="btn-enter" onclick="checkDate()">ตกลง</button>
     <div class="error-msg" id="error-msg">❌ วันเดือนปีไม่ถูกต้อง ลองอีกครั้งนะ</div>
+    <div class="mic-status" id="mic-status">🎤 กำลังขอสิทธิ์ไมโครโฟน...</div>
   </div>
 </div>
 
@@ -483,6 +486,26 @@ for(let i=0;i<90;i++){
   starsEl.appendChild(s);
 }
 
+/* ===== MIC: ขอสิทธิ์ตั้งแต่หน้าแรก ===== */
+let pendingMicStream = null;   // เก็บ stream ที่ได้มาจากหน้าแรก
+let micStatusEl = document.getElementById('mic-status');
+
+async function requestMicPermission() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    pendingMicStream = stream;
+    // แสดงสถานะว่าพร้อมแล้ว (แต่ยังไม่เปิดไมค์จริง — pause tracks ไว้ก่อน)
+    micStatusEl.textContent = '🎤 ไมโครโฟนพร้อมแล้ว ✓';
+    micStatusEl.classList.add('ready');
+  } catch(e) {
+    micStatusEl.textContent = '🎤 ไม่ได้รับสิทธิ์ไมโครโฟน';
+    console.warn('mic permission denied:', e);
+  }
+}
+
+// เรียกขอสิทธิ์ทันทีที่หน้าโหลด
+requestMicPermission();
+
 /* PAGE NAV */
 function goPage(n){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -526,9 +549,6 @@ const CSTYLES=[
 const CANDLE_X_FRAC=[202/580,242/580,290/580,338/580,378/580];
 const TOP_TIER_Y_FRAC=62/300;
 let candleLit=[true,true,true,true,true],builtCake=false;
-
-// ===== กำหนดจำนวนเทียนที่ดับในแต่ละทีที่เป่า =====
-// ทีแรก: ดับ 2 เล่ม, ทีสอง: ดับ 3 เล่ม (ดับหมด)
 let blowCount=0;
 const BLOW_PLAN=[2,3];
 
@@ -570,11 +590,9 @@ function renderCandles(){
   updateProgress();
 }
 
-// ดับเทียนจำนวน count เล่มพร้อมกัน (เล่มสุ่ม)
 function extinguishBatch(count){
   const alive=candleLit.map((v,i)=>v?i:-1).filter(i=>i>=0);
   if(!alive.length)return;
-  // สุ่มลำดับแล้วเลือก count เล่มแรก
   const pick=[...alive].sort(()=>Math.random()-0.5).slice(0,count);
   pick.forEach((idx,k)=>{
     setTimeout(()=>{
@@ -585,7 +603,6 @@ function extinguishBatch(count){
       if(sm){sm.classList.add('puffing');setTimeout(()=>sm.classList.remove('puffing'),1200);}
       sparkAt(idx);
       updateProgress();
-      // หลังเล่มสุดท้ายในชุดนี้ เช็คว่าดับหมดหรือยัง
       if(k===pick.length-1 && candleLit.filter(v=>v).length===0){
         document.getElementById('cake-hint').textContent='🎉 เทียนดับหมดแล้ว! ไปต่อ...';
         document.getElementById('cake-hint').style.color='var(--gold)';
@@ -614,22 +631,34 @@ function sparkAt(idx){
   });
 }
 
+/* ===== MIC LOGIC: ใช้ pendingMicStream ถ้ามี ===== */
 let audioCtx=null,analyser=null,micStream=null,rafId=null,isListening=false;
 let blowCooldown=false,volBuf=[],BUF=6,THRESH=0.05;
 
 async function startMic(){
   try{
-    const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
-    micStream=stream;
+    let stream;
+    if(pendingMicStream){
+      // ใช้ stream ที่ขอไว้แล้วตั้งแต่หน้าแรก
+      stream = pendingMicStream;
+      pendingMicStream = null;
+    } else {
+      // fallback: ขออีกครั้งถ้าไม่มี
+      stream = await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+    }
+    micStream = stream;
     audioCtx=new(window.AudioContext||window.webkitAudioContext)();
     analyser=audioCtx.createAnalyser();analyser.fftSize=512;
     audioCtx.createMediaStreamSource(stream).connect(analyser);
-    isListening=true;detect();
+    isListening=true;
+    document.getElementById('vol-bar-wrap').style.display='block';
+    detect();
   }catch(e){
     document.getElementById('mic-label').textContent='ไม่สามารถเข้าถึงไมค์ได้';
     console.warn('mic unavailable');
   }
 }
+
 function stopMic(){
   isListening=false;if(rafId){cancelAnimationFrame(rafId);rafId=null;}
   micStream&&micStream.getTracks().forEach(t=>t.stop());
@@ -651,7 +680,6 @@ function detect(){
       extinguishBatch(BLOW_PLAN[blowCount]);
       blowCount++;
     }
-    // cooldown นานพอให้ animation เสร็จก่อนตรวจจับทีถัดไป
     setTimeout(()=>{blowCooldown=false;},1500);
   }
   rafId=requestAnimationFrame(detect);
