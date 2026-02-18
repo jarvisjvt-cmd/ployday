@@ -625,8 +625,8 @@ async function startMic(){
     analyser=audioCtx.createAnalyser();analyser.fftSize=512;
     audioCtx.createMediaStreamSource(stream).connect(analyser);
     isListening=true;detect();
-    document.getElementById('vol-bar-wrap').style.display='block';
-    document.getElementById('mic-label').textContent='🎤 ไมค์เปิดแล้ว';
+    // document.getElementById('vol-bar-wrap').style.display='block';
+    // document.getElementById('mic-label').textContent='🎤 ไมค์เปิดแล้ว';
   }catch(e){
     document.getElementById('mic-label').textContent='ไม่สามารถเข้าถึงไมค์ได้';
     console.warn('mic unavailable');
