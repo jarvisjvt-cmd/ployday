@@ -615,7 +615,7 @@ function sparkAt(idx){
 }
 
 let audioCtx=null,analyser=null,micStream=null,rafId=null,isListening=false;
-let blowCooldown=false,volBuf=[],BUF=6,THRESH=0.09;
+let blowCooldown=false,volBuf=[],BUF=6,THRESH=0.05;
 
 async function startMic(){
   try{
