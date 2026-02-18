@@ -651,7 +651,6 @@ async function startMic(){
     analyser=audioCtx.createAnalyser();analyser.fftSize=512;
     audioCtx.createMediaStreamSource(stream).connect(analyser);
     isListening=true;
-    document.getElementById('vol-bar-wrap').style.display='block';
     detect();
   }catch(e){
     document.getElementById('mic-label').textContent='ไม่สามารถเข้าถึงไมค์ได้';
